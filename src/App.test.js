@@ -1,4 +1,5 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { act } from 'react';
 import App from './App';
 
 // Mock para a API fetch
@@ -26,29 +27,39 @@ afterEach(() => {
 });
 
 test('renders initial message and loads a pokemon', async () => {
-  render(<App />);
+  await act(async () => {
+    render(<App />);
+  });
 
-  // Verifica a mensagem inicial
-  expect(screen.getByText(/Selecione um Pokémon para ver suas informações/i)).toBeInTheDocument();
-
-  // useEffect chama getRandomPokemon no mount. Devemos esperar a imagem aparecer.
+  // Aguarda o pokemon inicial carregar (devido ao useEffect) e a imagem aparecer
   const pokemonImage = await screen.findByAltText(/bulbasaur/i);
   expect(pokemonImage).toBeInTheDocument();
+  
+  // Verifica que a mensagem inicial está presente antes de escanear
+  expect(screen.getByText(/Selecione um Pokémon para ver suas informações/i)).toBeInTheDocument();
 });
 
 test('gets a new pokemon when "Novo Pokémon" is clicked', async () => {
-  render(<App />);
+  await act(async () => {
+    render(<App />);
+  });
 
   // Espera o pokemon inicial carregar
   await screen.findByAltText(/bulbasaur/i);
 
   // Clica no botão para buscar um novo pokemon
   const button = screen.getByText(/Novo Pokémon/i);
-  fireEvent.click(button);
+  
+  await act(async () => {
+    fireEvent.click(button);
+    // Aguarda um pouco para a promise do fetch resolver
+    await new Promise(resolve => setTimeout(resolve, 0));
+  });
 
-  // Verifica se a função fetch foi chamada novamente
-  // A primeira chamada é no useEffect, a segunda é no click.
-  expect(global.fetch).toHaveBeenCalledTimes(2);
+  // Aguarda a conclusão das atualizações de estado
+  await waitFor(() => {
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
 
   // A imagem ainda deve ser do bulbasaur porque o mock retorna o mesmo pokemon
   const pokemonImage = await screen.findByAltText(/bulbasaur/i);
@@ -56,21 +67,28 @@ test('gets a new pokemon when "Novo Pokémon" is clicked', async () => {
 });
 
 test('shows pokemon info in the pokedex when "Scanear Pokémon" is clicked', async () => {
-  render(<App />);
+  await act(async () => {
+    render(<App />);
+  });
 
   // Espera o pokemon inicial carregar no campo
   await screen.findByAltText(/bulbasaur/i);
 
   // Pega o botão de scanear e clica
   const pokedexButton = screen.getByText(/Scanear Pokémon/i);
-  fireEvent.click(pokedexButton);
+  
+  act(() => {
+    fireEvent.click(pokedexButton);
+  });
 
   // Agora as informações do pokemon devem aparecer na tela da Pokedex
-  const pokemonName = await screen.findByText(/bulbasaur/i);
+  await waitFor(() => {
+    expect(screen.getByText(/bulbasaur/i)).toBeInTheDocument();
+  });
+
   const height = screen.getByText(/Altura: 7/i);
   const weight = screen.getByText(/Peso: 69/i);
 
-  expect(pokemonName).toBeInTheDocument();
   expect(height).toBeInTheDocument();
   expect(weight).toBeInTheDocument();
 });
